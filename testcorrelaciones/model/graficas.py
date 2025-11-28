@@ -1,22 +1,23 @@
 import matplotlib.pyplot as plt
 
 
-def crear_grafica_pv(presiones, valores, nombre_eje_y, titulo):
+def crear_grafica_propiedad(presiones, valores, Pb, nombre_y, titulo):
     """
-    Genera una gráfica de Matplotlib y devuelve el objeto figura.
+    Genera gráfica X-Y con línea vertical en Pb.
     """
-    fig, ax = plt.figure(figsize=(8, 5)), plt.gca()
+    fig, ax = plt.subplots(figsize=(7, 4.5))
 
-    ax.plot(presiones, valores, linewidth=2, color='#1f77b4', label=nombre_eje_y)
+    # Graficar la curva principal
+    ax.plot(presiones, valores, linewidth=2, color='blue', label=nombre_y)
 
-    ax.set_title(titulo, fontsize=14, fontweight='bold')
-    ax.set_xlabel("Presión (psia)", fontsize=12)
-    ax.set_ylabel(nombre_eje_y, fontsize=12)
-    ax.grid(True, linestyle='--', alpha=0.7)
+    # Agregar línea roja en Pb (Presión de Burbuja)
+    ax.axvline(x=Pb, color='red', linestyle='--', linewidth=1.5, label=f'Pb = {Pb} psi')
+
+    ax.set_title(titulo, fontsize=11, fontweight='bold')
+    ax.set_xlabel("Presión (psia)")
+    ax.set_ylabel(nombre_y)
+    ax.grid(True, linestyle=':', alpha=0.6)
     ax.legend()
-
-    # Añadir línea vertical indicando Pb (opcional, visualmente útil)
-    # Si quisieras marcar el Pb, necesitarías pasarlo como argumento.
 
     plt.tight_layout()
     return fig

@@ -1,59 +1,97 @@
+import numpy as np
 import math
 
 
-# --- 1. PRESIÓN DE BURBUJA (Pb) ---
-def standing_pb(Rs, yg, API, T):
+# ==========================================
+# 1. UTILIDADES
+# ==========================================
+def generar_presiones(P_res, P_atm):
     """
-    Calcula la Presión de Burbuja usando Standing (1947).
-    Fuente: PDF Página 20 [cite: 467]
-    T en Fahrenheit.
+    Genera un arreglo de presiones desde P_res hasta P_atm
+    disminuyendo de 10 en 10 psi.
     """
-    # a = 0.00091(T) - 0.0125(API)
-    a = 0.00091 * T - 0.0125 * API
-
-    # Pb = 18.2 * [(Rs/yg)^0.83 * 10^(a - 1.4)]
-    term1 = (Rs / yg) ** 0.83
-    term2 = 10 ** (a - 1.4)
-    pb = 18.2 * (term1 * term2)
-    return pb
+    # Se usa P_atm - 1 para asegurar que se incluya el valor atmosférico en el rango
+    return np.arange(P_res, P_atm - 1, -10)
 
 
-# --- 2. SOLUBILIDAD DEL GAS (Rs) ---
+def calcular_gamma_o(API):
+    """Calcula gravedad específica del oil desde API"""
+    return 141.5 / (131.5 + API)
+
+
+# ==========================================
+# 2. SOLUBILIDAD DEL GAS (Rs)
+# ==========================================
 def standing_rs(P, yg, API, T):
-    """
-    Calcula la Solubilidad del Gas (Rs) usando Standing (1947).
-    Fuente: PDF Página 25 [cite: 542]
-    """
-    # x = 0.0125*API - 0.00091*T
+    a = 0.00091 * T - 0.0125 * API
     x = 0.0125 * API - 0.00091 * T
-
-    # Rs = yg * [((P/18.2) + 1.4) * 10^x]^1.2048
-    term_inner = (P / 18.2) + 1.4
-    rs = yg * (term_inner * (10 ** x)) ** 1.2048
+    term = (P / 18.2) + 1.4
+    rs = yg * (term * (10 ** x)) ** 1.2048
     return rs
 
 
-# --- 3. FACTOR VOLUMÉTRICO DEL PETRÓLEO (Bo) ---
+# ==========================================
+# 3. COMPRESIBILIDAD (Co) - SUBSATURADO
+# ==========================================
+def vasquez_beggs_co(Rsb, yg, API, T, P, T_sep=100, P_sep=100):
+    ygc = yg * (1 + 5.912e-5 * API * T_sep * math.log10(P_sep / 114.7))
+
+    numerator = -1433 + 5 * Rsb + 17.2 * T - 1180 * ygc + 12.61 * API
+    denominator = 10 ** 5 * P
+    co = numerator / denominator
+    return co
+
+
+# ==========================================
+# 4. FACTOR VOLUMÉTRICO (Bo)
+# ==========================================
 def standing_bo_saturado(Rs, yg, yo, T):
-    """
-    Calcula Bo para petróleo SATURADO usando Standing (1981).
-    Fuente: PDF Página 33
-    """
-    # Bo = 0.9759 + 0.000120 * [Rs * (yg/yo)^0.5 + 1.25*T]^1.2
-    term_inner = Rs * ((yg / yo) ** 0.5) + 1.25 * T
-    bo = 0.9759 + 0.000120 * (term_inner ** 1.2)
+    term = Rs * ((yg / yo) ** 0.5) + 1.25 * T
+    bo = 0.9759 + 0.000120 * (term ** 1.2)
     return bo
 
 
-def bo_undersaturated(Bob, Co, Pb, P):
-    """
-    Calcula Bo para petróleo SUBSATURADO (P > Pb).
-    Fuente: PDF Página 37 [cite: 761]
-    Formula: Bo = Bob * exp(Co * (Pb - P)) (Nota: PDF dice Pb-P, usualmente es P-Pb para compresibilidad,
-    pero seguimos la fuente del PDF que usa el exponente para ajustar el volumen).
-    """
-    import math
-    # Bo = Bob * e^(Co * (Pb - P))
-    # Nota: Verifica el signo en tu clase, a veces es exp(Co*(Pb - P)) para indicar que el volumen se reduce al aumentar P.
-    bo = Bob * math.exp(Co * (Pb - P))
-    return bo
+def bo_subsaturado(Bob, Co, Pb, P):
+    return Bob * math.exp(Co * (Pb - P))
+
+
+# ==========================================
+# 5. DENSIDAD DEL PETRÓLEO (rho_o)
+# ==========================================
+def standing_densidad_saturado(Rs, yg, yo, T):
+    num = 62.4 * yo + 0.0136 * Rs * yg
+    # Termino del denominador
+    term = Rs * ((yg / yo) ** 0.25) + 1.25 * T
+    den_val = 0.972 + 0.000147 * (term ** 1.175)
+
+    rho = num / den_val
+    return rho
+
+
+def densidad_subsaturado(rho_ob, Co, Pb, P):
+    return rho_ob * math.exp(Co * (P - Pb))
+
+
+# ==========================================
+# 6. VISCOSIDAD DEL PETRÓLEO (mu_o)
+# ==========================================
+def beggs_robinson_mu_dead(API, T):
+    z = 3.0324 - 0.02023 * API
+    y = 10 ** z
+    x = y * (T ** -1.163)
+    mu_od = (10 ** x) - 1.0
+    return mu_od
+
+
+def beggs_robinson_mu_saturado(mu_od, Rs):
+    a = 10.715 * ((Rs + 100) ** -0.515)
+    b = 5.44 * ((Rs + 150) ** -0.338)
+    mu_ob = a * (mu_od ** b)
+    return mu_ob
+
+
+def vasquez_beggs_mu_subsaturado(mu_ob, P, Pb):
+
+    m = 2.6 * (P ** 1.187) * math.exp(-11.513 - 8.98e-5 * P)
+    mu = mu_ob * ((P / Pb) ** m)
+    return mu
